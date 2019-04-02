@@ -105,13 +105,46 @@ def exitKodi(parms):
     xbmc.shutdown()
 
 
+# Some valid constants
+__prev_next__ = ['previous', 'next']
+__on_off__ = ['on', 'off']
+
+
+def executeJSONRPC(method, params):
+    xbmc.executeJSONRPC('{{ "jsonrpc": "2.0", "method": "{}", "params": {}, "id": 1 }}'.format(method, params))
+
+
+# Selects the next or previous subtitle
+def selectSubtitle(params):
+    global __prev_next__
+    if not isMediaLoaded():
+        raise Exception('No media loaded')
+    mode = getQueryParam(params, '__mode')
+    if not mode in __prev_next__ and not mode in __on_off__:
+        raise Exception("Invalid mode")
+    executeJSONRPC("Player.SetSubtitle", '{{ "playerid": 1, "subtitle": "{}" }}'.format(mode))
+
+
+# Selects the next or previous audio track
+def selectAudio(params):
+    global __prev_next__
+    if not isMediaLoaded():
+        raise Exception('No media loaded')
+    mode = getQueryParam(params, '__mode')
+    if not mode in __prev_next__:
+        raise Exception("Invalid mode")
+    executeJSONRPC("Player.SetAudioStream", '{{ "playerid": 1, "stream": "{}" }}'.format(mode))
+
+
 __service_handlers__ = {
     'pause': pauseMedia,
     'resume': resumeMedia,
     'stop': stopMedia,
     'rewind': rewindMedia,
     'forward': forwardMedia,
-    'exit': exitKodi
+    'exit': exitKodi,
+    'subtitle': selectSubtitle,
+    'audio': selectAudio
 }
 
 
