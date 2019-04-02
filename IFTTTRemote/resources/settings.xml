@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="General">
+        <setting id="servicePort" type="number" label="Service Port" default="9685"/>
+        <setting id="userToken" type="text" label="Custom Token"/>
+    </category>
+</settings>

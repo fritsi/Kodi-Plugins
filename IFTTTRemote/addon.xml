@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="hu.fritsi.ifttt.remote" name="IFTTT Remote Service" version="1.0.8" provider-name="Daniel Fritsi">
+    <requires>
+        <import addon="xbmc.python" version="2.26.0"/>
+        <import addon="xbmc.gui" version="5.14.0"/>
+        <import addon="script.module.requests" version="2.19.1"/>
+    </requires>
+    <extension point="xbmc.service" library="service.py"/>
+    <extension point="xbmc.addon.metadata">
+        <platform>all</platform>
+        <summary lang="en">HTTP service to be used with IFTTT</summary>
+        <description lang="en">HTTP service which can be used with IFFT to control Kodi</description>
+    </extension>
+</addon>
