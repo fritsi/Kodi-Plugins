@@ -182,6 +182,20 @@ __service_handlers__ = {
 }
 
 
+# Gets the device's local IP address (e.g.: 192.168.1.42)
+def getLocalIP():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    localIP = None
+    try:
+        s.connect(("8.8.8.8", 80))
+        localIP = s.getsockname()[0]
+    finally:
+        s.close()
+    if localIP is None:
+        raise Exception('Could not get the IP address')
+    return str(localIP)
+
+
 # Authorizes the request
 def doAuthorization(content):
     global __user_token__
@@ -190,8 +204,7 @@ def doAuthorization(content):
     items = authorization.split('/')
     if len(items) != 2:
         raise Exception('Unauthorized')
-    name = socket.gethostname()
-    if items[0] != name or items[1] != __user_token__:
+    if items[0] != getLocalIP() or items[1] != __user_token__:
         raise Exception('Unauthorized')
 
 
