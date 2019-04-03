@@ -1,6 +1,7 @@
 import SimpleHTTPServer
 import SocketServer
 import base64
+import datetime
 import threading
 import traceback
 import urllib2
@@ -12,15 +13,33 @@ import xbmcaddon
 __addon__ = xbmcaddon.Addon()
 __addon_name__ = __addon__.getAddonInfo('name')
 
-__service_port__ = int(__addon__.getSetting('servicePort'))
-__user_token__ = __addon__.getSetting('userToken')
 
-__spdyn_hostname__ = __addon__.getSetting('spdynHost')
-__spdyn_token__ = __addon__.getSetting('spdynToken')
+# Reads a Kodi addons setting or returns None if the setting is empty
+def getSetting(name):
+    global __addon__
+    value = __addon__.getSetting(name)
+    if value == '':
+        value = None
+    return value
+
+
+__service_port__ = getSetting('servicePort')
+__user_token__ = getSetting('userToken')
+
+if __service_port__ is not None:
+    __service_port__ = int(__service_port__)
+
+__spdyn_hostname__ = getSetting('spdynHost')
+__spdyn_token__ = getSetting('spdynToken')
+__spdyn_update_interval__ = getSetting('spdynUpdateIntervalLimit')
+
+if __spdyn_update_interval__ is not None:
+    __spdyn_update_interval__ = int(__spdyn_update_interval__)
 
 
 # Displays a notification
 def displayNotification(message):
+    global __addon_name__
     xbmc.executebuiltin('Notification({}, {}, {})'.format(__addon_name__, message, 3000))
 
 
@@ -122,6 +141,7 @@ def executeJSONRPC(method, params):
 # Selects the next or previous subtitle
 def selectSubtitle(params):
     global __prev_next__
+    global __on_off__
     if not isMediaLoaded():
         raise Exception('No media loaded')
     mode = getQueryParam(params, '__mode')
@@ -182,10 +202,31 @@ class IFTTTRemoteService(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self.send_response(200, 'OK')
             self.end_headers()
         except:
-            xbmc.log('[IFTTT] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
+            xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
             # Returning HTTP 500 if there was an error
             self.send_response(500, traceback.format_exc())
             self.end_headers()
+
+
+__time_format__ = '%Y-%m-%d %H:%M:%S'
+
+
+# Converts a time into text
+def toTimeText(time):
+    global __time_format__
+    return time.strftime(__time_format__)
+
+
+# Converts a text into time
+def fromTimeText(timeText):
+    global __time_format__
+    return datetime.datetime.strptime(timeText, __time_format__)
+
+
+# Gets the current time
+# The to string and then back conversion if for stripping the timezone
+def getCurrentTime():
+    return fromTimeText(toTimeText(datetime.datetime.now()))
 
 
 # Issues an HTTP request and reads the response
@@ -202,24 +243,47 @@ def getIP():
 
 # Updates the IP address via SPDYN
 def updateIP():
+    global __addon__
     global __spdyn_hostname__
     global __spdyn_token__
+
+    # Checking whether an IP update is necessary or not
+    prevUpdate = getSetting("__prev_ip_update")
+
+    if prevUpdate is not None and (getCurrentTime() - fromTimeText(prevUpdate)).total_seconds() < __spdyn_update_interval__ * 60:
+        xbmc.log('[hu.fritsi.ifttt.remote] Not updating the IP address this time', level=xbmc.LOGNOTICE)
+        return
+
+    xbmc.log('[hu.fritsi.ifttt.remote] Updating the IP address', level=xbmc.LOGNOTICE)
+
     myIP = getIP()
-    xbmc.log('[IFTTT] Updating SPDYN with IP {}'.format(myIP), level=xbmc.LOGNOTICE)
+
+    # Updating the IP address
     spdynHeaders = {
         'Authorization': 'Basic {}'.format(base64.b64encode('{}:{}'.format(__spdyn_hostname__, __spdyn_token__)))
     }
     request = urllib2.Request('https://update.spdyn.de/nic/update?hostname={}&myip={}'.format(__spdyn_hostname__, myIP), None, spdynHeaders)
     response = readHTTP(request)
+
+    # Validating the response
     if response != 'nochg {}'.format(myIP) and response != 'good {}'.format(myIP):
-        xbmc.log('[IFTTT] Invalid SPDYN response: {}'.format(response), level=xbmc.LOGERROR)
+        xbmc.log('[hu.fritsi.ifttt.remote] Invalid IP address update response: {}'.format(response), level=xbmc.LOGERROR)
         raise Exception('Invalid update IP response: {}'.format(response))
 
+    xbmc.log('[hu.fritsi.ifttt.remote] Succcessfully updated the IP address', level=xbmc.LOGNOTICE)
 
-if __name__ == '__main__':
+    # Storing when the last IP update happened
+    __addon__.setSetting('__prev_ip_update', toTimeText(getCurrentTime()))
+
+
+# Starts the addon
+def run():
+    if __service_port__ is None or __user_token__ is None or __spdyn_hostname__ is None or __spdyn_token__ is None or __spdyn_update_interval__ is None:
+        xbmc.log('[hu.fritsi.ifttt.remote] Missing settings', level=xbmc.LOGWARNING)
+        return
+
     # Creating the HTTP Server
     serviceHandler = SocketServer.TCPServer(('0.0.0.0', __service_port__), IFTTTRemoteService)
-
 
     # Starts the HTTP Server and displays a notification
     def startService():
@@ -227,12 +291,11 @@ if __name__ == '__main__':
             updateIP()
             displayNotification('Starting the IFTTT remote service')
             xbmc.log(
-                '[IFTTT] Starting the IFTTT remote service on port {}'.format(__service_port__),
+                '[hu.fritsi.ifttt.remote] Starting the IFTTT remote service on port {}'.format(__service_port__),
                 level=xbmc.LOGNOTICE)
             serviceHandler.serve_forever()
         except:
-            xbmc.log('[IFTTT] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
-
+            xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
 
     # Executing the server on a different Thread
     thread = threading.Thread(target=startService)
@@ -247,3 +310,7 @@ if __name__ == '__main__':
             displayNotification('Stopping the IFTTT remote service')
             serviceHandler.shutdown()
             break
+
+
+if __name__ == '__main__':
+    run()

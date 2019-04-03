@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
     <category label="General">
-        <setting id="servicePort" type="number" label="Service Port" default="9685"/>
-        <setting id="userToken" type="text" label="Custom Token"/>
+        <setting id="servicePort" type="number" label="Service port" default="9685"/>
+        <setting id="userToken" type="text" label="Authentication token" option="hidden" enable="!eq(-1,)"/>
     </category>
-    <category label="SPDYN">
-        <setting id="spdynHost" type="text" label="SPDYN Host Name"/>
-        <setting id="spdynToken" type="text" label="SPDYN Host Token"/>
+    <category label="Dynamic DNS">
+        <setting id="spdynHost" type="text" label="DDNS name"/>
+        <setting id="spdynToken" type="text" label="DDNS token" option="hidden" enable="!eq(-1,)"/>
+        <setting id="spdynUpdateIntervalLimit" type="number" label="IP update interval (minutes)" default="5"/>
     </category>
 </settings>
