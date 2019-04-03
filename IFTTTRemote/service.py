@@ -1,4 +1,4 @@
-import SimpleHTTPServer
+import BaseHTTPServer
 import SocketServer
 import base64
 import datetime
@@ -9,6 +9,8 @@ import urlparse
 
 import xbmc
 import xbmcaddon
+
+from lib.fjson import json_load
 
 __addon__ = xbmcaddon.Addon()
 __addon_name__ = __addon__.getAddonInfo('name')
@@ -22,6 +24,10 @@ def getSetting(name):
         value = None
     return value
 
+
+##########################
+# Loading Addon Settings #
+##########################
 
 __service_port__ = getSetting('servicePort')
 __user_token__ = getSetting('userToken')
@@ -37,23 +43,22 @@ if __spdyn_update_interval__ is not None:
     __spdyn_update_interval__ = int(__spdyn_update_interval__)
 
 
+######################
+# Starting the Addon #
+######################
+
+
 # Displays a notification
 def displayNotification(message):
     global __addon_name__
     xbmc.executebuiltin('Notification({}, {}, {})'.format(__addon_name__, message, 3000))
 
 
-# Gets a HTTP query parameter
-# Handles the scenario where the query parameter gets parsed as a List
-def getQueryParam(params, name):
-    if name not in params or params[name] is None:
-        raise Exception('Could not find a parameter')
-    result = params[name]
-    if isinstance(result, list):
-        if len(result) != 1:
-            raise Exception('Invalid parameter value')
-        return result[0]
-    return result
+# Gets a fields from the JSON supplied in the POST body
+def getField(content, name):
+    if name not in content or content[name] is None:
+        raise Exception('Could not find a field')
+    return content[name]
 
 
 # Checks whether there's any media (video or audio) loaded into Kodi's player
@@ -72,30 +77,31 @@ def isPaused():
 
 
 # Pauses the media if it's playing or throws an Exception if there's no media loaded or the media is not playing at the moment
-def pauseMedia(params):
+def pauseMedia(content):
     if not isMediaLoaded() or not isPlaying():
         raise Exception('Not playing anything right now')
     xbmc.Player().pause()
 
 
 # Resumes the media if it's paused or throws an Exception if there's no media loaded or the media is not paused at the moment
-def resumeMedia(params):
+def resumeMedia(content):
     if not isMediaLoaded() or not isPaused():
         raise Exception('Not paused anything right now')
     xbmc.Player().pause()  # pause will resume the media if it's paused currently
 
 
 # Stops the media or throws an Exception if there's no media loaded
-def stopMedia(params):
+def stopMedia(content):
     if not isMediaLoaded():
         raise Exception('No media loaded')
     xbmc.Player().stop()
 
 
-# Returns the time parameter from the HTTP query params as seconds
-def getTime(params):
-    time = float(getQueryParam(params, '__time'))
-    unit = getQueryParam(params, '__unit')
+# Returns the time parameter from the POST content as seconds
+def getTime(content):
+    params = getField(content, 'params')
+    time = float(getField(params, 'time'))
+    unit = getField(params, 'unit')
     if unit == 'secs':
         return time
     elif unit == 'mins':
@@ -105,20 +111,20 @@ def getTime(params):
 
 
 # Rewinds the media with the given amount of time
-def rewindMedia(params):
+def rewindMedia(content):
     if not isMediaLoaded():
         raise Exception('No media loaded')
-    position = xbmc.Player().getTime() - getTime(params)
+    position = xbmc.Player().getTime() - getTime(content)
     if position < 0:
         position = 0.0
     xbmc.Player().seekTime(position)
 
 
 # Fast-forwards the media with the given amount of time
-def forwardMedia(params):
+def forwardMedia(content):
     if not isMediaLoaded():
         raise Exception('No media loaded')
-    position = xbmc.Player().getTime() + getTime(params)
+    position = xbmc.Player().getTime() + getTime(content)
     if position >= xbmc.Player().getTotalTime():
         position = xbmc.Player().getTotalTime() - 5.0
     xbmc.Player().seekTime(position)
@@ -139,23 +145,25 @@ def executeJSONRPC(method, params):
 
 
 # Selects the next or previous subtitle
-def selectSubtitle(params):
+def selectSubtitle(content):
     global __prev_next__
     global __on_off__
     if not isMediaLoaded():
         raise Exception('No media loaded')
-    mode = getQueryParam(params, '__mode')
+    params = getField(content, 'params')
+    mode = getField(params, 'mode')
     if not mode in __prev_next__ and not mode in __on_off__:
         raise Exception("Invalid mode")
     executeJSONRPC("Player.SetSubtitle", '{{ "playerid": 1, "subtitle": "{}" }}'.format(mode))
 
 
 # Selects the next or previous audio track
-def selectAudio(params):
+def selectAudio(content):
     global __prev_next__
     if not isMediaLoaded():
         raise Exception('No media loaded')
-    mode = getQueryParam(params, '__mode')
+    params = getField(content, 'params')
+    mode = getField(params, 'mode')
     if not mode in __prev_next__:
         raise Exception("Invalid mode")
     executeJSONRPC("Player.SetAudioStream", '{{ "playerid": 1, "stream": "{}" }}'.format(mode))
@@ -173,32 +181,46 @@ __service_handlers__ = {
 }
 
 
-class IFTTTRemoteService(SimpleHTTPServer.SimpleHTTPRequestHandler):
-    def do_GET(self):
+class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
+    def do_POST(self):
         global __user_token__
         global __service_handlers__
 
         try:
             # Parsing the HTTP request
             result = urlparse.urlparse(self.path)
-            params = urlparse.parse_qs(result.query)
             if not result.path.startswith('/ifttt/remote/'):
                 raise Exception('Invalid request')
 
+            # Getting basic content info and validating it
+            contentType = self.headers.getheader('Content-Type')
+            if contentType is None or not contentType.startswith('application/json'):
+                raise Exception('Invalid request')
+
+            contentLength = self.headers.getheader('Content-Length')
+            if contentLength is None or contentLength == '':
+                raise Exception('Invalid request')
+            contentLength = int(contentLength)
+            if contentLength < 2:
+                raise Exception('Invalid request')
+
+            # Reading the content
+            content = json_load(self.rfile.read(contentLength))
+
             # Authorizing
-            if params is None:
+            if content is None:
                 raise Exception('Unauthorized')
-            suppliedToken = getQueryParam(params, '__authorization')
+            suppliedToken = getField(content, 'authorization')
             if suppliedToken != __user_token__:
                 raise Exception('Unauthorized')
 
             # Getting the service to execute
             service = result.path[14:]
             if service not in __service_handlers__:
-                raise Exception('Invalid service: {}'.format(service))
+                raise Exception('Invalid service')
 
             # Executing the service and returning HTTP 200 on successful execution
-            __service_handlers__[service](params)
+            __service_handlers__[service](content)
             self.send_response(200, 'OK')
             self.end_headers()
         except:
@@ -268,9 +290,9 @@ def updateIP():
     # Validating the response
     if response != 'nochg {}'.format(myIP) and response != 'good {}'.format(myIP):
         xbmc.log('[hu.fritsi.ifttt.remote] Invalid IP address update response: {}'.format(response), level=xbmc.LOGERROR)
-        raise Exception('Invalid update IP response: {}'.format(response))
+        raise Exception('Invalid IP address update response: {}'.format(response))
 
-    xbmc.log('[hu.fritsi.ifttt.remote] Succcessfully updated the IP address', level=xbmc.LOGNOTICE)
+    xbmc.log('[hu.fritsi.ifttt.remote] Successfully updated the IP address', level=xbmc.LOGNOTICE)
 
     # Storing when the last IP update happened
     __addon__.setSetting('__prev_ip_update', toTimeText(getCurrentTime()))
@@ -290,9 +312,7 @@ def run():
         try:
             updateIP()
             displayNotification('Starting the IFTTT remote service')
-            xbmc.log(
-                '[hu.fritsi.ifttt.remote] Starting the IFTTT remote service on port {}'.format(__service_port__),
-                level=xbmc.LOGNOTICE)
+            xbmc.log('[hu.fritsi.ifttt.remote] Starting the IFTTT remote service', level=xbmc.LOGNOTICE)
             serviceHandler.serve_forever()
         except:
             xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
