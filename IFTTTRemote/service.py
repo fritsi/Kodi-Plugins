@@ -2,6 +2,7 @@ import BaseHTTPServer
 import SocketServer
 import base64
 import datetime
+import socket
 import threading
 import traceback
 import urllib2
@@ -181,6 +182,19 @@ __service_handlers__ = {
 }
 
 
+# Authorizes the request
+def doAuthorization(content):
+    global __user_token__
+    raw_authorization = getField(content, 'authorization')
+    authorization = base64.b64decode(raw_authorization)
+    items = authorization.split('/')
+    if len(items) != 2:
+        raise Exception('Unauthorized')
+    name = socket.gethostname()
+    if items[0] != name or items[1] != __user_token__:
+        raise Exception('Unauthorized')
+
+
 class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
     def do_POST(self):
         global __user_token__
@@ -206,13 +220,11 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
 
             # Reading the content
             content = json_load(self.rfile.read(contentLength))
+            if content is None:
+                raise Exception('Invalid request')
 
             # Authorizing
-            if content is None:
-                raise Exception('Unauthorized')
-            suppliedToken = getField(content, 'authorization')
-            if suppliedToken != __user_token__:
-                raise Exception('Unauthorized')
+            doAuthorization(content)
 
             # Getting the service to execute
             service = result.path[14:]
