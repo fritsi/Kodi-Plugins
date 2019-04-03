@@ -1,21 +1,29 @@
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/pause?__authorization=[YOUR_TOKEN]
+URL: http://[your.ddns.address]:[your.port]/ifttt/remote/pause
+Content: { "authorization": "[your.access.token]" }
 
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/resume?__authorization=[YOUR_TOKEN]
+URL: http://[your.ddns.address]:[your.port]/ifttt/remote/resume
+Content: { "authorization": "[your.access.token]" }
 
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/stop?__authorization=[YOUR_TOKEN]
+URL: http://[your.ddns.address]:[your.port]/ifttt/remote/stop
+Content: { "authorization": "[your.access.token]" }
 
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/rewind?__authorization=[YOUR_TOKEN]&__time={{NumberField}}&__unit=secs
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/rewind?__authorization=[YOUR_TOKEN]&__time={{NumberField}}&__unit=mins
+URL: http://[your.ddns.address]:[your.port]/ifttt/remote/rewind
+Content: { "authorization": "[your.access.token]", "params": { "time": "{{NumberField}}", "unit": "secs" } }
+Content: { "authorization": "[your.access.token]", "params": { "time": "{{NumberField}}", "unit": "mins" } }
 
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/forward?__authorization=[YOUR_TOKEN]&__time={{NumberField}}&__unit=secs
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/forward?__authorization=[YOUR_TOKEN]&__time={{NumberField}}&__unit=mins
+URL: http://[your.ddns.address]:[your.port]/ifttt/remote/forward
+Content: { "authorization": "[your.access.token]", "params": { "time": "{{NumberField}}", "unit": "secs" } }
+Content: { "authorization": "[your.access.token]", "params": { "time": "{{NumberField}}", "unit": "mins" } }
 
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/exit?__authorization=[YOUR_TOKEN]
+URL: http://[your.ddns.address]:[your.port]/ifttt/remote/exit
+Content: { "authorization": "[your.access.token]" }
 
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/subtitle?__authorization=[YOUR_TOKEN]&__mode=next
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/subtitle?__authorization=[YOUR_TOKEN]&__mode=previous
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/subtitle?__authorization=[YOUR_TOKEN]&__mode=on
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/subtitle?__authorization=[YOUR_TOKEN]&__mode=off
+URL: http://[your.ddns.address]:[your.port]/ifttt/remote/subtitle
+Content: { "authorization": "[your.access.token]", "params": { "mode": "on" } }
+Content: { "authorization": "[your.access.token]", "params": { "mode": "off" } }
+Content: { "authorization": "[your.access.token]", "params": { "mode": "next" } }
+Content: { "authorization": "[your.access.token]", "params": { "mode": "previous" } }
 
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/audio?__authorization=[YOUR_TOKEN]&__mode=next
-http://my.ddns.address:[YOUR_PORT]/ifttt/remote/audio?__authorization=[YOUR_TOKEN]&__mode=previous
+URL: http://[your.ddns.address]:[your.port]/ifttt/remote/audio
+Content: { "authorization": "[your.access.token]", "params": { "mode": "next" } }
+Content: { "authorization": "[your.access.token]", "params": { "mode": "previous" } }
