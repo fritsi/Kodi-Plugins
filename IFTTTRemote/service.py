@@ -1,7 +1,9 @@
 import SimpleHTTPServer
 import SocketServer
+import base64
 import threading
 import traceback
+import urllib2
 import urlparse
 
 import xbmc
@@ -12,6 +14,9 @@ __addon_name__ = __addon__.getAddonInfo('name')
 
 __service_port__ = int(__addon__.getSetting('servicePort'))
 __user_token__ = __addon__.getSetting('userToken')
+
+__spdyn_hostname__ = __addon__.getSetting('spdynHost')
+__spdyn_token__ = __addon__.getSetting('spdynToken')
 
 
 # Displays a notification
@@ -177,10 +182,38 @@ class IFTTTRemoteService(SimpleHTTPServer.SimpleHTTPRequestHandler):
             self.send_response(200, 'OK')
             self.end_headers()
         except:
-            xbmc.log(traceback.format_exc(), level=xbmc.LOGERROR)
+            xbmc.log('[IFTTT] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
             # Returning HTTP 500 if there was an error
             self.send_response(500, traceback.format_exc())
             self.end_headers()
+
+
+# Issues an HTTP request and reads the response
+def readHTTP(req):
+    opener = urllib2.build_opener()
+    return opener.open(req).read().replace('\r', '').replace('\n', '')
+
+
+# Gets my IP address
+def getIP():
+    request = urllib2.Request('http://checkip4.spdns.de/', None, {})
+    return readHTTP(request)
+
+
+# Updates the IP address via SPDYN
+def updateIP():
+    global __spdyn_hostname__
+    global __spdyn_token__
+    myIP = getIP()
+    xbmc.log('[IFTTT] Updating SPDYN with IP {}'.format(myIP), level=xbmc.LOGNOTICE)
+    spdynHeaders = {
+        'Authorization': 'Basic {}'.format(base64.b64encode('{}:{}'.format(__spdyn_hostname__, __spdyn_token__)))
+    }
+    request = urllib2.Request('https://update.spdyn.de/nic/update?hostname={}&myip={}'.format(__spdyn_hostname__, myIP), None, spdynHeaders)
+    response = readHTTP(request)
+    if response != 'nochg {}'.format(myIP) and response != 'good {}'.format(myIP):
+        xbmc.log('[IFTTT] Invalid SPDYN response: {}'.format(response), level=xbmc.LOGERROR)
+        raise Exception('Invalid update IP response: {}'.format(response))
 
 
 if __name__ == '__main__':
@@ -191,13 +224,14 @@ if __name__ == '__main__':
     # Starts the HTTP Server and displays a notification
     def startService():
         try:
+            updateIP()
             displayNotification('Starting the IFTTT remote service')
             xbmc.log(
-                'Starting the IFTTT remote service on port {}'.format(__service_port__),
+                '[IFTTT] Starting the IFTTT remote service on port {}'.format(__service_port__),
                 level=xbmc.LOGNOTICE)
             serviceHandler.serve_forever()
         except:
-            xbmc.log(traceback.format_exc(), level=xbmc.LOGERROR)
+            xbmc.log('[IFTTT] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
 
 
     # Executing the server on a different Thread
