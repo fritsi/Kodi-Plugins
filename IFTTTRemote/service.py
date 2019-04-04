@@ -246,10 +246,12 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
 
             # Executing the service and returning HTTP 200 on successful execution
             __service_handlers__[service](content)
+
             self.send_response(200, 'OK')
             self.end_headers()
         except:
             xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
+
             # Returning HTTP 500 if there was an error
             self.send_response(500, traceback.format_exc())
             self.end_headers()
@@ -332,10 +334,20 @@ def run():
     # Creating the HTTP Server
     serviceHandler = SocketServer.TCPServer(('0.0.0.0', __service_port__), IFTTTRemoteService)
 
+    # Executing a dummy getCurrentTime before we start a Thread,
+    # because the datetime library has an issue when its first being imported on a Thread
+    getCurrentTime()
+
     # Starts the HTTP Server and displays a notification
     def startService():
         try:
-            updateIP()
+            # Updating the IP
+            # Failing to update the IP should not block the start
+            try:
+                updateIP()
+            except:
+                xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
+
             displayNotification('Starting the IFTTT remote service')
             xbmc.log('[hu.fritsi.ifttt.remote] Starting the IFTTT remote service', level=xbmc.LOGNOTICE)
             serviceHandler.serve_forever()
