@@ -286,9 +286,9 @@ class IFTTTRemoteService(BaseHTTPRequestHandler):
 
     def __end_request(self, code, content=None):
         self.send_response(code)
-        while content.endswith('\r') or content.endswith('\n'):
-            content = content[:-1]
         if content is not None:
+            while content.endswith('\r') or content.endswith('\n'):
+                content = content[:-1]
             self.send_header('Content-Type', 'text/plain')
             self.send_header('Content-Length', len(content))
         self.end_headers()
