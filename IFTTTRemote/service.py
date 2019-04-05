@@ -134,10 +134,33 @@ def forward_media(content):
     xbmc.Player().seekTime(position)
 
 
+__exit_triggered__ = False
+__exit_lock__ = threading.Lock()
+
+
+# Returns true if an exit was triggered
+def was_exit_triggered():
+    global __exit_triggered__
+    global __exit_lock__
+    __exit_lock__.acquire()
+    result = __exit_triggered__
+    __exit_lock__.release()
+    return result
+
+
+# Sets that an exit was triggered
+def set_exit_triggered():
+    global __exit_triggered__
+    global __exit_lock__
+    __exit_lock__.acquire()
+    __exit_triggered__ = True
+    __exit_lock__.release()
+
+
 # Exits Kodi
 # noinspection PyUnusedLocal
 def exit_kodi(content):
-    xbmc.shutdown()
+    set_exit_triggered()
 
 
 # Some valid constants
@@ -217,6 +240,18 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
         global __user_token__
         global __service_handlers__
 
+        # Returns HTTP 500 if an exit was triggered
+        def should_not_handle():
+            if was_exit_triggered():
+                self.send_response(500, 'Exit triggered')
+                self.end_headers()
+                return True
+            return False
+
+        # If an exit was triggered we do not handle the request
+        if should_not_handle():
+            return
+
         try:
             # Parsing the HTTP request
             result = urlparse.urlparse(self.path)
@@ -247,6 +282,10 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
             service = result.path[14:]
             if service not in __service_handlers__:
                 raise Exception('Invalid service')
+
+            # If an exit was triggered we do not handle the request
+            if should_not_handle():
+                return
 
             # Executing the service and returning HTTP 200 on successful execution
             __service_handlers__[service](content)
@@ -329,8 +368,14 @@ def update_ip():
     __addon__.setSetting('__prev_ip_update', to_time_text(get_current_time()))
 
 
+# Stores whether we've started out IFTTT service or not
+__tcp_server_running__ = False
+
+
 # Starts the addon
 def run():
+    global __tcp_server_running__
+
     if __service_port__ is None or __user_token__ is None or __spdyn_hostname__ is None or __spdyn_token__ is None or __spdyn_update_interval__ is None:
         xbmc.log('[hu.fritsi.ifttt.remote] Missing settings', level=xbmc.LOGWARNING)
         return
@@ -354,7 +399,14 @@ def run():
 
             display_notification('Starting the IFTTT remote service')
             xbmc.log('[hu.fritsi.ifttt.remote] Starting the IFTTT remote service', level=xbmc.LOGNOTICE)
-            tcp_server.serve_forever()
+
+            try:
+                __tcp_server_running__ = True
+                tcp_server.serve_forever()
+            except:
+                display_notification('Failed to start the IFTTT remote service')
+                xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
+                __tcp_server_running__ = False
         except:
             xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
 
@@ -366,11 +418,22 @@ def run():
     # Getting the Kodi monitor so we know when to stop the HTTP service
     monitor = xbmc.Monitor()
 
+    # Starting a loop to monitor when we need to exit
     while not monitor.abortRequested():
-        if monitor.waitForAbort(10):
-            display_notification('Stopping the IFTTT remote service')
-            tcp_server.shutdown()
+        if was_exit_triggered() or monitor.waitForAbort(3):
             break
+
+    # Storing whether the shutdown was requested through IFTTT or by a simple Kodi shutdown
+    exit_triggered = was_exit_triggered()
+
+    if __tcp_server_running__:
+        display_notification('Stopping the IFTTT remote service')
+        tcp_server.shutdown()
+        __tcp_server_running__ = False
+
+    # If an exit was triggered we shut down Kodi
+    if exit_triggered:
+        xbmc.shutdown()
 
 
 if __name__ == '__main__':
