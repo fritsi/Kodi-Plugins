@@ -1,12 +1,15 @@
 import BaseHTTPServer
 import SocketServer
 import base64
-import datetime
 import socket
 import threading
 import traceback
 import urllib2
 import urlparse
+
+import _strptime # DO NOT remove this import as it's fixing a threading/importing issue in datetime
+
+from datetime import datetime
 
 import xbmc
 import xbmcaddon
@@ -312,13 +315,15 @@ def to_time_text(time):
 # Converts a text into time
 def from_time_text(time_text):
     global __time_format__
-    return datetime.datetime.strptime(time_text, __time_format__)
+    return datetime.strptime(time_text, __time_format__)
 
 
 # Gets the current time
 # The to string and then back conversion if for stripping the timezone
 def get_current_time():
-    return from_time_text(to_time_text(datetime.datetime.now()))
+    current_time = datetime.now()
+    as_text = to_time_text(current_time)
+    return from_time_text(as_text)
 
 
 # Issues an HTTP request and reads the response
@@ -382,10 +387,6 @@ def run():
 
     # Creating the HTTP Server
     tcp_server = SocketServer.TCPServer(('0.0.0.0', __service_port__), IFTTTRemoteService)
-
-    # Executing a dummy get_current_time before we start a Thread,
-    # because the datetime library has an issue when its first being imported on a Thread
-    get_current_time()
 
     # Starts the HTTP Server and displays a notification
     def start_service():
