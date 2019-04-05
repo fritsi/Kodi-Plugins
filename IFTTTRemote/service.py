@@ -18,7 +18,7 @@ __addon_name__ = __addon__.getAddonInfo('name')
 
 
 # Reads a Kodi addons setting or returns None if the setting is empty
-def getSetting(name):
+def get_setting(name):
     global __addon__
     value = __addon__.getSetting(name)
     if value == '':
@@ -30,15 +30,15 @@ def getSetting(name):
 # Loading Addon Settings #
 ##########################
 
-__service_port__ = getSetting('servicePort')
-__user_token__ = getSetting('userToken')
+__service_port__ = get_setting('servicePort')
+__user_token__ = get_setting('userToken')
 
 if __service_port__ is not None:
     __service_port__ = int(__service_port__)
 
-__spdyn_hostname__ = getSetting('spdynHost')
-__spdyn_token__ = getSetting('spdynToken')
-__spdyn_update_interval__ = getSetting('spdynUpdateIntervalLimit')
+__spdyn_hostname__ = get_setting('spdynHost')
+__spdyn_token__ = get_setting('spdynToken')
+__spdyn_update_interval__ = get_setting('spdynUpdateIntervalLimit')
 
 if __spdyn_update_interval__ is not None:
     __spdyn_update_interval__ = int(__spdyn_update_interval__)
@@ -50,59 +50,62 @@ if __spdyn_update_interval__ is not None:
 
 
 # Displays a notification
-def displayNotification(message):
+def display_notification(message):
     global __addon_name__
     xbmc.executebuiltin('Notification({}, {}, {})'.format(__addon_name__, message, 3000))
 
 
 # Gets a fields from the JSON supplied in the POST body
-def getField(content, name):
+def get_field(content, name):
     if name not in content or content[name] is None:
         raise Exception('Could not find a field')
     return content[name]
 
 
 # Checks whether there's any media (video or audio) loaded into Kodi's player
-def isMediaLoaded():
+def is_media_loaded():
     return xbmc.getCondVisibility('Player.HasMedia')
 
 
 # Checks whether there's any media playing at the moment
-def isPlaying():
+def is_playing():
     return xbmc.getCondVisibility('Player.Playing')
 
 
 # Checks whether there's any media paused at the moment
-def isPaused():
+def is_paused():
     return xbmc.getCondVisibility('Player.Paused')
 
 
 # Pauses the media if it's playing or throws an Exception if there's no media loaded or the media is not playing at the moment
-def pauseMedia(content):
-    if not isMediaLoaded() or not isPlaying():
+# noinspection PyUnusedLocal
+def pause_media(content):
+    if not is_media_loaded() or not is_playing():
         raise Exception('Not playing anything right now')
     xbmc.Player().pause()
 
 
 # Resumes the media if it's paused or throws an Exception if there's no media loaded or the media is not paused at the moment
-def resumeMedia(content):
-    if not isMediaLoaded() or not isPaused():
+# noinspection PyUnusedLocal
+def resume_media(content):
+    if not is_media_loaded() or not is_paused():
         raise Exception('Not paused anything right now')
     xbmc.Player().pause()  # pause will resume the media if it's paused currently
 
 
 # Stops the media or throws an Exception if there's no media loaded
-def stopMedia(content):
-    if not isMediaLoaded():
+# noinspection PyUnusedLocal
+def stop_media(content):
+    if not is_media_loaded():
         raise Exception('No media loaded')
     xbmc.Player().stop()
 
 
 # Returns the time parameter from the POST content as seconds
-def getTime(content):
-    params = getField(content, 'params')
-    time = float(getField(params, 'time'))
-    unit = getField(params, 'unit')
+def get_time(content):
+    params = get_field(content, 'params')
+    time = float(get_field(params, 'time'))
+    unit = get_field(params, 'unit')
     if unit == 'secs':
         return time
     elif unit == 'mins':
@@ -112,27 +115,28 @@ def getTime(content):
 
 
 # Rewinds the media with the given amount of time
-def rewindMedia(content):
-    if not isMediaLoaded():
+def rewind_media(content):
+    if not is_media_loaded():
         raise Exception('No media loaded')
-    position = xbmc.Player().getTime() - getTime(content)
+    position = xbmc.Player().getTime() - get_time(content)
     if position < 0:
         position = 0.0
     xbmc.Player().seekTime(position)
 
 
 # Fast-forwards the media with the given amount of time
-def forwardMedia(content):
-    if not isMediaLoaded():
+def forward_media(content):
+    if not is_media_loaded():
         raise Exception('No media loaded')
-    position = xbmc.Player().getTime() + getTime(content)
+    position = xbmc.Player().getTime() + get_time(content)
     if position >= xbmc.Player().getTotalTime():
         position = xbmc.Player().getTotalTime() - 5.0
     xbmc.Player().seekTime(position)
 
 
 # Exits Kodi
-def exitKodi(parms):
+# noinspection PyUnusedLocal
+def exit_kodi(content):
     xbmc.shutdown()
 
 
@@ -141,74 +145,74 @@ __prev_next__ = ['previous', 'next']
 __on_off__ = ['on', 'off']
 
 
-def executeJSONRPC(method, params):
+def execute_jsonrpc(method, params):
     xbmc.executeJSONRPC('{{ "jsonrpc": "2.0", "method": "{}", "params": {}, "id": 1 }}'.format(method, params))
 
 
 # Selects the next or previous subtitle
-def selectSubtitle(content):
+def select_subtitle(content):
     global __prev_next__
     global __on_off__
-    if not isMediaLoaded():
+    if not is_media_loaded():
         raise Exception('No media loaded')
-    params = getField(content, 'params')
-    mode = getField(params, 'mode')
-    if not mode in __prev_next__ and not mode in __on_off__:
+    params = get_field(content, 'params')
+    mode = get_field(params, 'mode')
+    if mode not in __prev_next__ and mode not in __on_off__:
         raise Exception("Invalid mode")
-    executeJSONRPC("Player.SetSubtitle", '{{ "playerid": 1, "subtitle": "{}" }}'.format(mode))
+    execute_jsonrpc("Player.SetSubtitle", '{{ "playerid": 1, "subtitle": "{}" }}'.format(mode))
 
 
 # Selects the next or previous audio track
-def selectAudio(content):
+def select_audio(content):
     global __prev_next__
-    if not isMediaLoaded():
+    if not is_media_loaded():
         raise Exception('No media loaded')
-    params = getField(content, 'params')
-    mode = getField(params, 'mode')
-    if not mode in __prev_next__:
+    params = get_field(content, 'params')
+    mode = get_field(params, 'mode')
+    if mode not in __prev_next__:
         raise Exception("Invalid mode")
-    executeJSONRPC("Player.SetAudioStream", '{{ "playerid": 1, "stream": "{}" }}'.format(mode))
+    execute_jsonrpc("Player.SetAudioStream", '{{ "playerid": 1, "stream": "{}" }}'.format(mode))
 
 
 __service_handlers__ = {
-    'pause': pauseMedia,
-    'resume': resumeMedia,
-    'stop': stopMedia,
-    'rewind': rewindMedia,
-    'forward': forwardMedia,
-    'exit': exitKodi,
-    'subtitle': selectSubtitle,
-    'audio': selectAudio
+    'pause': pause_media,
+    'resume': resume_media,
+    'stop': stop_media,
+    'rewind': rewind_media,
+    'forward': forward_media,
+    'exit': exit_kodi,
+    'subtitle': select_subtitle,
+    'audio': select_audio
 }
 
 
 # Gets the device's local IP address (e.g.: 192.168.1.42)
-def getLocalIP():
+def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    localIP = None
     try:
         s.connect(("8.8.8.8", 80))
-        localIP = s.getsockname()[0]
+        local_ip = s.getsockname()[0]
     finally:
         s.close()
-    if localIP is None:
+    if local_ip is None:
         raise Exception('Could not get the IP address')
-    return str(localIP)
+    return str(local_ip)
 
 
 # Authorizes the request
-def doAuthorization(content):
+def do_authorization(content):
     global __user_token__
-    raw_authorization = getField(content, 'authorization')
+    raw_authorization = get_field(content, 'authorization')
     authorization = base64.b64decode(raw_authorization)
     items = authorization.split('/')
     if len(items) != 2:
         raise Exception('Unauthorized')
-    if items[0] != getLocalIP() or items[1] != __user_token__:
+    if items[0] != get_local_ip() or items[1] != __user_token__:
         raise Exception('Unauthorized')
 
 
 class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
+    # noinspection PyPep8Naming
     def do_POST(self):
         global __user_token__
         global __service_handlers__
@@ -220,24 +224,24 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
                 raise Exception('Invalid request')
 
             # Getting basic content info and validating it
-            contentType = self.headers.getheader('Content-Type')
-            if contentType is None or not contentType.startswith('application/json'):
+            content_type = self.headers.getheader('Content-Type')
+            if content_type is None or not content_type.startswith('application/json'):
                 raise Exception('Invalid request')
 
-            contentLength = self.headers.getheader('Content-Length')
-            if contentLength is None or contentLength == '':
+            content_length = self.headers.getheader('Content-Length')
+            if content_length is None or content_length == '':
                 raise Exception('Invalid request')
-            contentLength = int(contentLength)
-            if contentLength < 2:
+            content_length = int(content_length)
+            if content_length < 2:
                 raise Exception('Invalid request')
 
             # Reading the content
-            content = json_load(self.rfile.read(contentLength))
+            content = json_load(self.rfile.read(content_length))
             if content is None:
                 raise Exception('Invalid request')
 
             # Authorizing
-            doAuthorization(content)
+            do_authorization(content)
 
             # Getting the service to execute
             service = result.path[14:]
@@ -261,68 +265,68 @@ __time_format__ = '%Y-%m-%d %H:%M:%S'
 
 
 # Converts a time into text
-def toTimeText(time):
+def to_time_text(time):
     global __time_format__
     return time.strftime(__time_format__)
 
 
 # Converts a text into time
-def fromTimeText(timeText):
+def from_time_text(time_text):
     global __time_format__
-    return datetime.datetime.strptime(timeText, __time_format__)
+    return datetime.datetime.strptime(time_text, __time_format__)
 
 
 # Gets the current time
 # The to string and then back conversion if for stripping the timezone
-def getCurrentTime():
-    return fromTimeText(toTimeText(datetime.datetime.now()))
+def get_current_time():
+    return from_time_text(to_time_text(datetime.datetime.now()))
 
 
 # Issues an HTTP request and reads the response
-def readHTTP(req):
+def read_http(req):
     opener = urllib2.build_opener()
     return opener.open(req).read().replace('\r', '').replace('\n', '')
 
 
 # Gets my IP address
-def getIP():
+def get_ip():
     request = urllib2.Request('http://checkip4.spdns.de/', None, {})
-    return readHTTP(request)
+    return read_http(request)
 
 
 # Updates the IP address via SPDYN
-def updateIP():
+def update_ip():
     global __addon__
     global __spdyn_hostname__
     global __spdyn_token__
 
     # Checking whether an IP update is necessary or not
-    prevUpdate = getSetting("__prev_ip_update")
+    prev_update = get_setting("__prev_ip_update")
 
-    if prevUpdate is not None and (getCurrentTime() - fromTimeText(prevUpdate)).total_seconds() < __spdyn_update_interval__ * 60:
+    if prev_update is not None and (get_current_time() - from_time_text(prev_update)).total_seconds() < __spdyn_update_interval__ * 60:
         xbmc.log('[hu.fritsi.ifttt.remote] Not updating the IP address this time', level=xbmc.LOGNOTICE)
         return
 
     xbmc.log('[hu.fritsi.ifttt.remote] Updating the IP address', level=xbmc.LOGNOTICE)
 
-    myIP = getIP()
+    my_ip = get_ip()
 
     # Updating the IP address
-    spdynHeaders = {
+    headers = {
         'Authorization': 'Basic {}'.format(base64.b64encode('{}:{}'.format(__spdyn_hostname__, __spdyn_token__)))
     }
-    request = urllib2.Request('https://update.spdyn.de/nic/update?hostname={}&myip={}'.format(__spdyn_hostname__, myIP), None, spdynHeaders)
-    response = readHTTP(request)
+    request = urllib2.Request('https://update.spdyn.de/nic/update?hostname={}&myip={}'.format(__spdyn_hostname__, my_ip), None, headers)
+    response = read_http(request)
 
     # Validating the response
-    if response != 'nochg {}'.format(myIP) and response != 'good {}'.format(myIP):
+    if response != 'nochg {}'.format(my_ip) and response != 'good {}'.format(my_ip):
         xbmc.log('[hu.fritsi.ifttt.remote] Invalid IP address update response: {}'.format(response), level=xbmc.LOGERROR)
         raise Exception('Invalid IP address update response: {}'.format(response))
 
     xbmc.log('[hu.fritsi.ifttt.remote] Successfully updated the IP address', level=xbmc.LOGNOTICE)
 
     # Storing when the last IP update happened
-    __addon__.setSetting('__prev_ip_update', toTimeText(getCurrentTime()))
+    __addon__.setSetting('__prev_ip_update', to_time_text(get_current_time()))
 
 
 # Starts the addon
@@ -332,30 +336,30 @@ def run():
         return
 
     # Creating the HTTP Server
-    serviceHandler = SocketServer.TCPServer(('0.0.0.0', __service_port__), IFTTTRemoteService)
+    tcp_server = SocketServer.TCPServer(('0.0.0.0', __service_port__), IFTTTRemoteService)
 
-    # Executing a dummy getCurrentTime before we start a Thread,
+    # Executing a dummy get_current_time before we start a Thread,
     # because the datetime library has an issue when its first being imported on a Thread
-    getCurrentTime()
+    get_current_time()
 
     # Starts the HTTP Server and displays a notification
-    def startService():
+    def start_service():
         try:
             # Updating the IP
             # Failing to update the IP should not block the start
             try:
-                updateIP()
+                update_ip()
             except:
                 xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
 
-            displayNotification('Starting the IFTTT remote service')
+            display_notification('Starting the IFTTT remote service')
             xbmc.log('[hu.fritsi.ifttt.remote] Starting the IFTTT remote service', level=xbmc.LOGNOTICE)
-            serviceHandler.serve_forever()
+            tcp_server.serve_forever()
         except:
             xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
 
     # Executing the server on a different Thread
-    thread = threading.Thread(target=startService)
+    thread = threading.Thread(target=start_service)
     thread.daemon = True
     thread.start()
 
@@ -364,8 +368,8 @@ def run():
 
     while not monitor.abortRequested():
         if monitor.waitForAbort(10):
-            displayNotification('Stopping the IFTTT remote service')
-            serviceHandler.shutdown()
+            display_notification('Stopping the IFTTT remote service')
+            tcp_server.shutdown()
             break
 
 
