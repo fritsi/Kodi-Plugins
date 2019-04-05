@@ -1,5 +1,3 @@
-import BaseHTTPServer
-import SocketServer
 import base64
 import socket
 import threading
@@ -9,6 +7,7 @@ import urlparse
 
 import _strptime # DO NOT remove this import as it's fixing a threading/importing issue in datetime
 
+from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from datetime import datetime
 
 import xbmc
@@ -166,8 +165,8 @@ def select_subtitle(content):
     params = get_field(content, 'params')
     mode = get_field(params, 'mode')
     if mode not in __prev_next and mode not in __on_off:
-        raise Exception("Invalid mode")
-    execute_jsonrpc("Player.SetSubtitle", '{{ "playerid": 1, "subtitle": "{}" }}'.format(mode))
+        raise Exception('Invalid mode')
+    execute_jsonrpc('Player.SetSubtitle', '{{ "playerid": 1, "subtitle": "{}" }}'.format(mode))
 
 
 # Selects the next or previous audio track
@@ -178,8 +177,8 @@ def select_audio(content):
     params = get_field(content, 'params')
     mode = get_field(params, 'mode')
     if mode not in __prev_next:
-        raise Exception("Invalid mode")
-    execute_jsonrpc("Player.SetAudioStream", '{{ "playerid": 1, "stream": "{}" }}'.format(mode))
+        raise Exception('Invalid mode')
+    execute_jsonrpc('Player.SetAudioStream', '{{ "playerid": 1, "stream": "{}" }}'.format(mode))
 
 
 __service_handlers = {
@@ -198,7 +197,7 @@ __service_handlers = {
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect(("8.8.8.8", 80))
+        s.connect(('8.8.8.8', 80))
         local_ip = s.getsockname()[0]
     finally:
         s.close()
@@ -219,7 +218,7 @@ def do_authorization(content):
         raise Exception('Unauthorized')
 
 
-class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
+class IFTTTRemoteService(BaseHTTPRequestHandler):
     # noinspection PyPep8Naming
     def do_POST(self):
         global __service_handlers
@@ -228,8 +227,7 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
         # Returns HTTP 500 if an exit was triggered
         def should_not_handle():
             if __exit_triggered.get():
-                self.send_response(500, 'Exit triggered')
-                self.end_headers()
+                self.__end_request(500, "Exit was initiated")
                 return True
             return False
 
@@ -272,18 +270,29 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
             if should_not_handle():
                 return
 
-            # Executing the service and returning HTTP 200 on successful execution
+            # Executing the service
             __service_handlers[service](content)
 
-            self.send_response(200, 'OK')
-            self.end_headers()
+            # Returning HTTP 200 on successful execution
+            self.__end_request(200)
         except:
-            xbmc.log('[IFTTT remote] Error while handling the request\n{}'.format(traceback.format_exc()),
-                     level=xbmc.LOGERROR)
+            # Gathering the error
+            error = traceback.format_exc()
+            xbmc.log('[IFTTT remote] Error while handling the request\n{}'.format(error), level=xbmc.LOGERROR)
 
             # Returning HTTP 500 if there was an error
-            self.send_response(500, traceback.format_exc())
-            self.end_headers()
+            self.__end_request(500, error)
+
+    def __end_request(self, code, content=None):
+        self.send_response(code)
+        while content.endswith('\r') or content.endswith('\n'):
+            content = content[:-1]
+        if content is not None:
+            self.send_header('Content-Type', 'text/plain')
+            self.send_header('Content-Length', len(content))
+        self.end_headers()
+        if content is not None:
+            self.wfile.write(content)
 
 
 __time_format = '%Y-%m-%d %H:%M:%S'
@@ -328,7 +337,7 @@ def update_ip():
     global __spdyn_token
 
     # Checking whether an IP update is necessary or not
-    prev_update = get_setting("__prev_ip_update")
+    prev_update = get_setting('__prev_ip_update')
 
     if prev_update is not None and (get_current_time() - from_time_text(prev_update)).total_seconds() < __spdyn_update_interval * 60:
         xbmc.log('[IFTTT remote] Not updating the IP address this time', level=xbmc.LOGNOTICE)
@@ -375,7 +384,7 @@ def run():
         return
 
     # Creating the HTTP Server
-    tcp_server = SocketServer.TCPServer(('0.0.0.0', __service_port), IFTTTRemoteService)
+    tcp_server = HTTPServer(('0.0.0.0', __service_port), IFTTTRemoteService)
 
     # Starts the HTTP Server and displays a notification
     def start_service():
@@ -385,8 +394,7 @@ def run():
             try:
                 update_ip()
             except:
-                xbmc.log('[IFTTT remote] Error while updating the IP address\n{}'.format(traceback.format_exc()),
-                         level=xbmc.LOGERROR)
+                xbmc.log('[IFTTT remote] Error while updating the IP address\n{}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
 
             xbmc.log('[IFTTT remote] Starting the IFTTT remote service', level=xbmc.LOGNOTICE)
             display_notification('Starting the IFTTT remote service')
@@ -395,13 +403,11 @@ def run():
                 __tcp_server_running.set(True)
                 tcp_server.serve_forever()
             except:
-                xbmc.log('[IFTTT remote] Error while serving requests\n{}'.format(traceback.format_exc()),
-                         level=xbmc.LOGERROR)
+                xbmc.log('[IFTTT remote] Error while serving requests\n{}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
                 display_notification('Failed to start the IFTTT remote service')
                 __tcp_server_running.set(False)
         except:
-            xbmc.log('[IFTTT remote] Error in start service\n{}'.format(traceback.format_exc()),
-                     level=xbmc.LOGERROR)
+            xbmc.log('[IFTTT remote] Error in start service\n{}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
 
     # Executing the server on a different Thread
     thread = threading.Thread(target=start_service)
@@ -413,7 +419,7 @@ def run():
 
     # Starting a loop to monitor when we need to exit
     while not monitor.abortRequested():
-        if __exit_triggered.get() or monitor.waitForAbort(3):
+        if __exit_triggered.get() or monitor.waitForAbort(2):
             break
 
     if __tcp_server_running.get():
