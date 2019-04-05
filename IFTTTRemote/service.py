@@ -405,6 +405,7 @@ class Main:
             display_notification('Stopping the IFTTT remote service')
             self.__tcp_server.shutdown()
             _tcp_server_running.set(False)
+            xbmc.log('[IFTTT remote] Stopped the IFTTT remote service', level=xbmc.LOGNOTICE)
 
         # If an exit was triggered we shut down Kodi
         if _exit_triggered.get() and not monitor.abortRequested():
@@ -431,7 +432,7 @@ class Main:
                 self.__tcp_server.serve_forever()
             except:
                 xbmc.log('[IFTTT remote] Error while serving requests\n{}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
-                display_notification('Failed to start the IFTTT remote service')
+                display_notification('Error while serving requests')
                 _tcp_server_running.set(False)
         except:
             xbmc.log('[IFTTT remote] Error in start service\n{}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
