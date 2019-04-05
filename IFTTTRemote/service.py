@@ -15,6 +15,7 @@ import xbmc
 import xbmcaddon
 
 from lib.fjson import json_load
+from lib.threads import AtomicValue
 
 __addon = xbmcaddon.Addon()
 __addon_name = __addon.getAddonInfo('name')
@@ -137,33 +138,14 @@ def forward_media(content):
     xbmc.Player().seekTime(position)
 
 
-__exit_triggered = False
-__exit_lock = threading.Lock()
+__exit_triggered = AtomicValue(False)
 
 
-# Returns true if an exit was triggered
-def was_exit_triggered():
-    global __exit_triggered
-    global __exit_lock
-    __exit_lock.acquire()
-    result = __exit_triggered
-    __exit_lock.release()
-    return result
-
-
-# Sets that an exit was triggered
-def set_exit_triggered():
-    global __exit_triggered
-    global __exit_lock
-    __exit_lock.acquire()
-    __exit_triggered = True
-    __exit_lock.release()
-
-
-# Exits Kodi
+# Triggers a Kodi exit
 # noinspection PyUnusedLocal
 def exit_kodi(content):
-    set_exit_triggered()
+    global __exit_triggered
+    __exit_triggered.set(True)
 
 
 # Some valid constants
@@ -241,10 +223,11 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
     # noinspection PyPep8Naming
     def do_POST(self):
         global __service_handlers
+        global __exit_triggered
 
         # Returns HTTP 500 if an exit was triggered
         def should_not_handle():
-            if was_exit_triggered():
+            if __exit_triggered.get():
                 self.send_response(500, 'Exit triggered')
                 self.end_headers()
                 return True
@@ -295,7 +278,8 @@ class IFTTTRemoteService(BaseHTTPServer.BaseHTTPRequestHandler):
             self.send_response(200, 'OK')
             self.end_headers()
         except:
-            xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
+            xbmc.log('[IFTTT remote] Error while handling the request\n{}'.format(traceback.format_exc()),
+                     level=xbmc.LOGERROR)
 
             # Returning HTTP 500 if there was an error
             self.send_response(500, traceback.format_exc())
@@ -347,10 +331,10 @@ def update_ip():
     prev_update = get_setting("__prev_ip_update")
 
     if prev_update is not None and (get_current_time() - from_time_text(prev_update)).total_seconds() < __spdyn_update_interval * 60:
-        xbmc.log('[hu.fritsi.ifttt.remote] Not updating the IP address this time', level=xbmc.LOGNOTICE)
+        xbmc.log('[IFTTT remote] Not updating the IP address this time', level=xbmc.LOGNOTICE)
         return
 
-    xbmc.log('[hu.fritsi.ifttt.remote] Updating the IP address', level=xbmc.LOGNOTICE)
+    xbmc.log('[IFTTT remote] Updating the IP address', level=xbmc.LOGNOTICE)
 
     my_ip = get_ip()
 
@@ -363,17 +347,17 @@ def update_ip():
 
     # Validating the response
     if response != 'nochg {}'.format(my_ip) and response != 'good {}'.format(my_ip):
-        xbmc.log('[hu.fritsi.ifttt.remote] Invalid IP address update response: {}'.format(response), level=xbmc.LOGERROR)
+        xbmc.log('[IFTTT remote] Invalid IP address update response: {}'.format(response), level=xbmc.LOGERROR)
         raise Exception('Invalid IP address update response: {}'.format(response))
 
-    xbmc.log('[hu.fritsi.ifttt.remote] Successfully updated the IP address', level=xbmc.LOGNOTICE)
+    xbmc.log('[IFTTT remote] Successfully updated the IP address', level=xbmc.LOGNOTICE)
 
     # Storing when the last IP update happened
     __addon.setSetting('__prev_ip_update', to_time_text(get_current_time()))
 
 
 # Stores whether we've started out IFTTT service or not
-__tcp_server_running = False
+__tcp_server_running = AtomicValue(False)
 
 
 # Starts the addon
@@ -383,10 +367,11 @@ def run():
     global __spdyn_hostname
     global __spdyn_token
     global __spdyn_update_interval
+    global __exit_triggered
     global __tcp_server_running
 
     if __service_port is None or __user_token is None or __spdyn_hostname is None or __spdyn_token is None or __spdyn_update_interval is None:
-        xbmc.log('[hu.fritsi.ifttt.remote] Missing settings', level=xbmc.LOGWARNING)
+        xbmc.log('[IFTTT remote] Missing settings', level=xbmc.LOGWARNING)
         return
 
     # Creating the HTTP Server
@@ -400,20 +385,23 @@ def run():
             try:
                 update_ip()
             except:
-                xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
+                xbmc.log('[IFTTT remote] Error while updating the IP address\n{}'.format(traceback.format_exc()),
+                         level=xbmc.LOGERROR)
 
+            xbmc.log('[IFTTT remote] Starting the IFTTT remote service', level=xbmc.LOGNOTICE)
             display_notification('Starting the IFTTT remote service')
-            xbmc.log('[hu.fritsi.ifttt.remote] Starting the IFTTT remote service', level=xbmc.LOGNOTICE)
 
             try:
-                __tcp_server_running = True
+                __tcp_server_running.set(True)
                 tcp_server.serve_forever()
             except:
+                xbmc.log('[IFTTT remote] Error while serving requests\n{}'.format(traceback.format_exc()),
+                         level=xbmc.LOGERROR)
                 display_notification('Failed to start the IFTTT remote service')
-                xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
-                __tcp_server_running = False
+                __tcp_server_running.set(False)
         except:
-            xbmc.log('[hu.fritsi.ifttt.remote] {}'.format(traceback.format_exc()), level=xbmc.LOGERROR)
+            xbmc.log('[IFTTT remote] Error in start service\n{}'.format(traceback.format_exc()),
+                     level=xbmc.LOGERROR)
 
     # Executing the server on a different Thread
     thread = threading.Thread(target=start_service)
@@ -425,19 +413,18 @@ def run():
 
     # Starting a loop to monitor when we need to exit
     while not monitor.abortRequested():
-        if was_exit_triggered() or monitor.waitForAbort(3):
+        if __exit_triggered.get() or monitor.waitForAbort(3):
             break
 
-    # Storing whether the shutdown was requested through IFTTT or by a simple Kodi shutdown
-    exit_triggered = was_exit_triggered()
-
-    if __tcp_server_running:
+    if __tcp_server_running.get():
+        xbmc.log('[IFTTT remote] Stopping the IFTTT remote service', level=xbmc.LOGNOTICE)
         display_notification('Stopping the IFTTT remote service')
         tcp_server.shutdown()
-        __tcp_server_running = False
+        __tcp_server_running.set(False)
 
     # If an exit was triggered we shut down Kodi
-    if exit_triggered:
+    if __exit_triggered.get() and not monitor.abortRequested():
+        xbmc.log('[IFTTT remote] Triggering Kodi shutdown', level=xbmc.LOGNOTICE)
         xbmc.shutdown()
 
 
