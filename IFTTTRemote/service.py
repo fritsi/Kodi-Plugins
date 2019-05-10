@@ -1,4 +1,5 @@
 import base64
+import json
 import socket
 import threading
 import traceback
@@ -153,7 +154,9 @@ _on_off = ['on', 'off']
 
 
 def execute_jsonrpc(method, params):
-    xbmc.executeJSONRPC('{{ "jsonrpc": "2.0", "method": "{}", "params": {}, "id": 1 }}'.format(method, params))
+    request = { 'jsonrpc': '2.0', 'method': method, 'params': params, 'id': 1 }
+    request_text = json.dumps(request)
+    xbmc.executeJSONRPC(request_text)
 
 
 # Selects the next or previous subtitle
@@ -166,7 +169,7 @@ def select_subtitle(content):
     mode = get_field(params, 'mode')
     if mode not in _prev_next and mode not in _on_off:
         raise Exception('Invalid mode')
-    execute_jsonrpc('Player.SetSubtitle', '{{ "playerid": 1, "subtitle": "{}" }}'.format(mode))
+    execute_jsonrpc('Player.SetSubtitle', { 'playerid': 1, 'subtitle': mode })
 
 
 # Selects the next or previous audio track
@@ -178,7 +181,7 @@ def select_audio(content):
     mode = get_field(params, 'mode')
     if mode not in _prev_next:
         raise Exception('Invalid mode')
-    execute_jsonrpc('Player.SetAudioStream', '{{ "playerid": 1, "stream": "{}" }}'.format(mode))
+    execute_jsonrpc('Player.SetAudioStream', { 'playerid': 1, 'stream': mode })
 
 
 _service_handlers = {
