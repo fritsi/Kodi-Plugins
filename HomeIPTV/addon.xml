@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="com.fritsi.iptv" name="Home IPTV" version="1.0" provider-name="Daniel Fritsi">
+    <requires>
+        <import addon="xbmc.python" minversion="3.0.0" />
+        <import addon="xbmc.gui" minversion="5.15.0" />
+        <import addon="pvr.iptvsimple" minversion="19.2.2" />
+        <import addon="inputstream.adaptive" minversion="19.0.7" />
+        <import addon="inputstream.ffmpegdirect" minversion="19.0.3" />
+        <import addon="inputstream.rtmp" minversion="19.0.1" />
+        <import addon="script.module.pytz" minversion="2022.7" />
+        <import addon="script.module.requests" minversion="2.28.1" />
+        <import addon="script.module.urllib3" minversion="1.26.13" />
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="addon.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.service" library="service.py" start="login" />
+    <extension point="xbmc.addon.metadata">
+        <platform>all</platform>
+        <summary lang="en">Home IPTV Kodi addon</summary>
+        <description lang="en">Home IPTV Kodi addon for the PVR IPTV Simple addon</description>
+    </extension>
+</addon>

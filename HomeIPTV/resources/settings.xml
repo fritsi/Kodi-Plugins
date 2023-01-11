@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<settings>
+    <category label="Actions">
+        <setting id="action_refresh" type="action" label="Refresh Channels"
+                 action="XBMC.RunScript(com.fritsi.iptv, do_refresh)" />
+        <setting id="action_generate" type="action" label="Generate PVR IPTV Simple Settings"
+                 action="XBMC.RunScript(com.fritsi.iptv, do_generate)" />
+        <setting id="last_update_time" type="text" default="" visible="false" />
+        <setting id="telenor_token" type="text" default="" visible="false" />
+        <setting id="telenor_token_last_update_time" type="text" default="" visible="false" />
+    </category>
+    <category label="Telenor">
+        <setting id="telenor_username" type="text" label="Telenor Username" />
+        <setting id="telenor_password" type="text" label="Telenor Password" option="hidden" enable="!eq(-1,)" />
+    </category>
+    <category label="Tarr">
+        <setting id="tarr_username" type="text" label="Tarr Username" />
+        <setting id="tarr_password" type="text" label="Tarr Password" option="hidden" enable="!eq(-1,)" />
+        <setting id="tarr_device_id" type="text" label="Tarr Device Id" />
+    </category>
+</settings>
